@@ -6,14 +6,30 @@ import { Concert, ConcertDocument } from './concert.schemas';
 import { CreateConcertDto } from './dto/create-concert.dto';
 import { QueryConcertDto } from './dto/query-concert.dto';
 import { UpdateConcertDto } from './dto/update-concert.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CONCERT_CREATED, ConcertCreatedEvent } from './events/concert-created.event';
+
 
 @Injectable()
 export class ConcertsService {
-  constructor(@InjectModel(Concert.name) private model: Model<ConcertDocument>) {}
+  constructor(@InjectModel(Concert.name) private model: Model<ConcertDocument>,
+private events: EventEmitter2,
+) {}
 
-  create(dto: CreateConcertDto) {
-    return this.model.create({ ...dto, availableSeats: dto.totalSeats });
-  }
+  async create(dto: CreateConcertDto) {
+  const concert = await this.model.create({ ...dto, availableSeats: dto.totalSeats });
+
+  const payload: ConcertCreatedEvent = {
+    id: concert.id,
+    title: concert.title,
+    band: concert.band,
+    date: concert.date,
+    venue: concert.venue,
+  };
+  this.events.emit(CONCERT_CREATED, payload);
+
+  return concert;
+}
 
   async findAll(q: QueryConcertDto) {
     const filter: QueryFilter<ConcertDocument> = {};

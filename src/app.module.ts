@@ -5,6 +5,8 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { UsersModule } from './users/users.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ConcertsModule } from './concerts/concerts.module';
+import { FavoritesModule } from './favorites/favorites.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { ConcertsModule } from './concerts/concerts.module';
     UsersModule,
     AuthModule,
     ConcertsModule,
+    FavoritesModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}
