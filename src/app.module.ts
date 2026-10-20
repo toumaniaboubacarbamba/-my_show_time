@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { ConcertsModule } from './concerts/concerts.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { BookingsModule } from './bookings/bookings.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     ConcertsModule,
     FavoritesModule,
     NotificationsModule,
+    BookingsModule,
   ],
 })
 export class AppModule {}

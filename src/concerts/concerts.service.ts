@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { QueryFilter, Model } from 'mongoose';
 import { escapeRegex } from '../common/utils/escape-regex';
@@ -68,6 +68,26 @@ private events: EventEmitter2,
     const concert = await this.model.findById(id);
     if (!concert) throw new NotFoundException('Concert introuvable');
     return concert;
+  }
+
+  async reserveSeats(id: string, quantity: number) {
+    // Opération atomique : décrémente seulement s'il reste assez de places
+    const updated = await this.model.findOneAndUpdate(
+      { _id: id, date: { $gt: new Date() }, availableSeats: { $gte: quantity } },
+      { $inc: { availableSeats: -quantity } },
+      { new: true },
+    );
+    if (updated) return updated;
+
+    const concert = await this.findOne(id); // 404 si le concert n'existe pas
+    if (concert.date <= new Date()) {
+      throw new BadRequestException('Ce concert est déjà passé');
+    }
+    throw new ConflictException('Plus assez de places disponibles');
+  }
+
+  releaseSeats(id: string, quantity: number) {
+    return this.model.updateOne({ _id: id }, { $inc: { availableSeats: quantity } });
   }
 
   async update(id: string, dto: UpdateConcertDto) {
