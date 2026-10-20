@@ -12,7 +12,7 @@ export class User {
     @Prop({ required: true, select: false }) //jamais renvoyé par defaut
         password: string;
 
-    @Prop({ required: true, enum: Role, default: Role.USER })
+    @Prop({ required: true, enum: Role, default: Role.User })
         role: Role;
 }
 
