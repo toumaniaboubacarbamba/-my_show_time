@@ -3,7 +3,9 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CONCERT_CREATED, type ConcertCreatedEvent } from '../concerts/events/concert-created.event';
+import { CONCERT_DELETED, type ConcertDeletedEvent } from '../concerts/events/concert-deleted.event';
 import { FavoritesService } from '../favorites/favorites.service';
+import { USER_DELETED, type UserDeletedEvent } from '../users/events/user-deleted.event';
 import { Notification, NotificationDocument } from './notification.schema';
 
 @Injectable()
@@ -35,6 +37,16 @@ export class NotificationsService {
     } catch (err) {
       this.logger.error('Échec de création des notifications', err as Error);
     }
+  }
+
+  @OnEvent(USER_DELETED)
+  async onUserDeleted(event: UserDeletedEvent) {
+    await this.model.deleteMany({ user: event.id });
+  }
+
+  @OnEvent(CONCERT_DELETED)
+  async onConcertDeleted(event: ConcertDeletedEvent) {
+    await this.model.deleteMany({ concert: event.id });
   }
 
   findMine(userId: string) {

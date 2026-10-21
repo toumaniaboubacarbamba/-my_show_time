@@ -1,6 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { USER_DELETED, type UserDeletedEvent } from '../users/events/user-deleted.event';
 import { Favorite, FavoriteDocument } from './favorite.schema';
 
 @Injectable()
@@ -36,5 +38,10 @@ export class FavoritesService {
   async findUserIdsByBand(band: string) {
     const favorites = await this.model.find({ bandKey: this.key(band) }).select('user');
     return favorites.map((f) => f.user);
+  }
+
+  @OnEvent(USER_DELETED)
+  async onUserDeleted(event: UserDeletedEvent) {
+    await this.model.deleteMany({ user: event.id });
   }
 }

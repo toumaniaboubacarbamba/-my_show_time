@@ -8,28 +8,29 @@ import { QueryConcertDto } from './dto/query-concert.dto';
 import { UpdateConcertDto } from './dto/update-concert.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CONCERT_CREATED, ConcertCreatedEvent } from './events/concert-created.event';
-
+import { CONCERT_DELETED, type ConcertDeletedEvent } from './events/concert-deleted.event';
 
 @Injectable()
 export class ConcertsService {
-  constructor(@InjectModel(Concert.name) private model: Model<ConcertDocument>,
-private events: EventEmitter2,
-) {}
+  constructor(
+    @InjectModel(Concert.name) private model: Model<ConcertDocument>,
+    private events: EventEmitter2,
+  ) {}
 
   async create(dto: CreateConcertDto) {
-  const concert = await this.model.create({ ...dto, availableSeats: dto.totalSeats });
+    const concert = await this.model.create({ ...dto, availableSeats: dto.totalSeats });
 
-  const payload: ConcertCreatedEvent = {
-    id: concert.id,
-    title: concert.title,
-    band: concert.band,
-    date: concert.date,
-    venue: concert.venue,
-  };
-  this.events.emit(CONCERT_CREATED, payload);
+    const payload: ConcertCreatedEvent = {
+      id: concert.id,
+      title: concert.title,
+      band: concert.band,
+      date: concert.date,
+      venue: concert.venue,
+    };
+    this.events.emit(CONCERT_CREATED, payload);
 
-  return concert;
-}
+    return concert;
+  }
 
   async findAll(q: QueryConcertDto) {
     const filter: QueryFilter<ConcertDocument> = {};
@@ -71,7 +72,6 @@ private events: EventEmitter2,
   }
 
   async reserveSeats(id: string, quantity: number) {
-    // Opération atomique : décrémente seulement s'il reste assez de places
     const updated = await this.model.findOneAndUpdate(
       { _id: id, date: { $gt: new Date() }, availableSeats: { $gte: quantity } },
       { $inc: { availableSeats: -quantity } },
@@ -79,7 +79,7 @@ private events: EventEmitter2,
     );
     if (updated) return updated;
 
-    const concert = await this.findOne(id); // 404 si le concert n'existe pas
+    const concert = await this.findOne(id);
     if (concert.date <= new Date()) {
       throw new BadRequestException('Ce concert est déjà passé');
     }
@@ -93,7 +93,6 @@ private events: EventEmitter2,
   async update(id: string, dto: UpdateConcertDto) {
     const concert = await this.findOne(id);
 
-    // Si la capacité change, on ajuste les places restantes sans descendre sous 0
     if (dto.totalSeats !== undefined) {
       const available = concert.availableSeats + (dto.totalSeats - concert.totalSeats);
       if (available < 0) {
@@ -109,5 +108,8 @@ private events: EventEmitter2,
   async remove(id: string) {
     const res = await this.model.findByIdAndDelete(id);
     if (!res) throw new NotFoundException('Concert introuvable');
+
+    const payload: ConcertDeletedEvent = { id };
+    this.events.emit(CONCERT_DELETED, payload);
   }
 }

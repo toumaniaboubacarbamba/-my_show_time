@@ -1,9 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { OnEvent } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as QRCode from 'qrcode';
 import { ConcertsService } from '../concerts/concerts.service';
+import { CONCERT_DELETED, type ConcertDeletedEvent } from '../concerts/events/concert-deleted.event';
+import { USER_DELETED, type UserDeletedEvent } from '../users/events/user-deleted.event';
 import { BookingStatus } from './booking-status.enum';
 import { Booking, BookingDocument } from './booking.schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -19,6 +22,28 @@ export class BookingsService {
   private link(reference: string) {
     const base = this.config.get<string>('PUBLIC_URL', 'http://localhost:3000');
     return `${base}/bookings/verify/${reference}`;
+  }
+
+  @OnEvent(CONCERT_DELETED)
+  async onConcertDeleted(event: ConcertDeletedEvent) {
+    await this.model.updateMany(
+      { concert: event.id, status: BookingStatus.Confirmed },
+      { status: BookingStatus.Cancelled },
+    );
+  }
+
+  @OnEvent(USER_DELETED)
+  async onUserDeleted(event: UserDeletedEvent) {
+    const active = await this.model.find({ user: event.id, status: BookingStatus.Confirmed });
+    for (const booking of active) {
+      const cancelled = await this.model.findOneAndUpdate(
+        { _id: booking._id, status: BookingStatus.Confirmed },
+        { status: BookingStatus.Cancelled },
+      );
+      if (cancelled) {
+        await this.concerts.releaseSeats(booking.concert.toString(), booking.quantity);
+      }
+    }
   }
 
   async create(userId: string, dto: CreateBookingDto) {
