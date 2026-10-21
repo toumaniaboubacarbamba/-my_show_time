@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { BookingsService } from '../bookings/bookings.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
@@ -22,6 +23,7 @@ import type { AuthUser } from '../common/types/auth-user.type';
 import { QueryUserDto } from '../users/dto/query-user.dto';
 import { UsersService } from '../users/users.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { QueryStatsDto } from './dto/query-stats.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -31,7 +33,10 @@ import { UpdateUserDto } from './dto/update-user.dto';
 @Roles(Role.Admin)
 @Controller('admin')
 export class AdminController {
-  constructor(private users: UsersService) {}
+  constructor(
+    private users: UsersService,
+    private bookings: BookingsService,
+  ) {}
 
   @Get('users')
   list(@Query() query: QueryUserDto) {
@@ -41,6 +46,11 @@ export class AdminController {
   @Get('users/:id')
   findOne(@Param('id', ParseObjectIdPipe) id: string) {
     return this.users.getById(id);
+  }
+
+  @Get('stats')
+  stats(@Query() query: QueryStatsDto) {
+    return this.bookings.stats(query.days);
   }
 
   @Post('users')

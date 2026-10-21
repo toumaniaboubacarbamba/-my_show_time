@@ -110,4 +110,113 @@ export class BookingsService {
       concert: booking.concert,
     };
   }
+
+  async stats(days = 30) {
+    const confirmed = { status: BookingStatus.Confirmed };
+
+    // Début de la période, à minuit UTC
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+    start.setUTCDate(start.getUTCDate() - (days - 1));
+
+    const [totals, byStatus, topConcerts, byGenre, perDay] = await Promise.all([
+      // Totaux globaux (réservations confirmées)
+      this.model.aggregate([
+        { $match: confirmed },
+        { $group: { _id: null, tickets: { $sum: '$quantity' }, revenue: { $sum: '$totalPrice' } } },
+      ]),
+
+      // Répartition par statut
+      this.model.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+
+      // Top 5 des concerts, avec taux de remplissage
+      this.model.aggregate([
+        { $match: confirmed },
+        {
+          $group: {
+            _id: '$concert',
+            bookings: { $sum: 1 },
+            tickets: { $sum: '$quantity' },
+            revenue: { $sum: '$totalPrice' },
+          },
+        },
+        { $sort: { tickets: -1 } },
+        { $limit: 5 },
+        { $lookup: { from: 'concerts', localField: '_id', foreignField: '_id', as: 'concert' } },
+        { $unwind: '$concert' },
+        {
+          $project: {
+            _id: 0,
+            concertId: '$_id',
+            title: '$concert.title',
+            band: '$concert.band',
+            date: '$concert.date',
+            bookings: 1,
+            tickets: 1,
+            revenue: 1,
+            fillRate: {
+              $round: [{ $multiply: [{ $divide: ['$tickets', '$concert.totalSeats'] }, 100] }, 1],
+            },
+          },
+        },
+      ]),
+
+      // Billets et revenus par genre
+      this.model.aggregate([
+        { $match: confirmed },
+        { $lookup: { from: 'concerts', localField: 'concert', foreignField: '_id', as: 'concert' } },
+        { $unwind: '$concert' },
+        {
+          $group: {
+            _id: '$concert.genre',
+            tickets: { $sum: '$quantity' },
+            revenue: { $sum: '$totalPrice' },
+          },
+        },
+        { $sort: { tickets: -1 } },
+        { $project: { _id: 0, genre: '$_id', tickets: 1, revenue: 1 } },
+      ]),
+
+      // Activité par jour
+      this.model.aggregate([
+        { $match: { ...confirmed, createdAt: { $gte: start } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            bookings: { $sum: 1 },
+            tickets: { $sum: '$quantity' },
+            revenue: { $sum: '$totalPrice' },
+          },
+        },
+        { $project: { _id: 0, date: '$_id', bookings: 1, tickets: 1, revenue: 1 } },
+      ]),
+    ]);
+
+    const counts = Object.fromEntries(byStatus.map((s) => [s._id, s.count]));
+    const confirmedBookings: number = counts[BookingStatus.Confirmed] ?? 0;
+    const cancelledBookings: number = counts[BookingStatus.Cancelled] ?? 0;
+    const allBookings = confirmedBookings + cancelledBookings;
+
+    // On complète les jours sans réservation avec des zéros
+    const byDate = new Map(perDay.map((d) => [d.date, d]));
+    const daily = Array.from({ length: days }, (_, i) => {
+      const date = new Date(start.getTime() + i * 86_400_000).toISOString().slice(0, 10);
+      return byDate.get(date) ?? { date, bookings: 0, tickets: 0, revenue: 0 };
+    });
+
+    return {
+      summary: {
+        confirmedBookings,
+        cancelledBookings,
+        cancellationRate: allBookings
+          ? Math.round((cancelledBookings / allBookings) * 1000) / 10
+          : 0,
+        ticketsSold: totals[0]?.tickets ?? 0,
+        revenue: totals[0]?.revenue ?? 0,
+      },
+      topConcerts,
+      byGenre,
+      daily,
+    };
+  }
 }
