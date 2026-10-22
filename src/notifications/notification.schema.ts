@@ -1,16 +1,16 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
-import { Concert } from '../concerts/concert.schemas';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
+import { Concert } from '../concerts/concert.schema';
 import { User } from '../users/user.schema';
 
 export type NotificationDocument = HydratedDocument<Notification>;
 
 @Schema({ timestamps: true })
 export class Notification {
-  @Prop({ type: Types.ObjectId, ref: User.name, required: true, index: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
   user: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: Concert.name, required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Concert.name, required: true })
   concert: Types.ObjectId;
 
   @Prop({ required: true })

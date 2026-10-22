@@ -1,8 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import * as QRCode from 'qrcode';
 import { ConcertsService } from '../concerts/concerts.service';
 import { CONCERT_DELETED, type ConcertDeletedEvent } from '../concerts/events/concert-deleted.event';
@@ -10,9 +9,12 @@ import { USER_DELETED, type UserDeletedEvent } from '../users/events/user-delete
 import { BookingStatus } from './booking-status.enum';
 import { Booking, BookingDocument } from './booking.schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { Model, Types } from 'mongoose';
 
 @Injectable()
 export class BookingsService {
+  private readonly logger = new Logger(BookingsService.name);
+
   constructor(
     @InjectModel(Booking.name) private model: Model<BookingDocument>,
     private concerts: ConcertsService,
@@ -25,12 +27,13 @@ export class BookingsService {
   }
 
   @OnEvent(CONCERT_DELETED)
-  async onConcertDeleted(event: ConcertDeletedEvent) {
-    await this.model.updateMany(
-      { concert: event.id, status: BookingStatus.Confirmed },
-      { status: BookingStatus.Cancelled },
-    );
-  }
+async onConcertDeleted(event: ConcertDeletedEvent) {
+  const res = await this.model.updateMany(
+    { concert: new Types.ObjectId(event.id), status: BookingStatus.Confirmed },
+    { status: BookingStatus.Cancelled },
+  );
+  this.logger.log(`Concert ${event.id} supprimé : ${res.modifiedCount} réservation(s) annulée(s)`);
+}
 
   @OnEvent(USER_DELETED)
   async onUserDeleted(event: UserDeletedEvent) {
@@ -39,6 +42,7 @@ export class BookingsService {
       const cancelled = await this.model.findOneAndUpdate(
         { _id: booking._id, status: BookingStatus.Confirmed },
         { status: BookingStatus.Cancelled },
+        { returnDocument: 'after' },
       );
       if (cancelled) {
         await this.concerts.releaseSeats(booking.concert.toString(), booking.quantity);
@@ -74,7 +78,7 @@ export class BookingsService {
     const booking = await this.model.findOneAndUpdate(
       { _id: id, user: userId, status: BookingStatus.Confirmed },
       { status: BookingStatus.Cancelled },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!booking) throw new NotFoundException('Réservation introuvable ou déjà annulée');
 

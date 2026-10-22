@@ -1,12 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { User } from '../users/user.schema';
 
 export type FavoriteDocument = HydratedDocument<Favorite>;
 
 @Schema({ timestamps: true })
 export class Favorite {
-  @Prop({ type: Types.ObjectId, ref: User.name, required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true })
   user: Types.ObjectId;
 
   @Prop({ required: true, trim: true })

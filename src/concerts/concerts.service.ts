@@ -1,8 +1,8 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { QueryFilter, Model } from 'mongoose';
 import { escapeRegex } from '../common/utils/escape-regex';
-import { Concert, ConcertDocument } from './concert.schemas';
+import { Concert, ConcertDocument } from './concert.schema';
 import { CreateConcertDto } from './dto/create-concert.dto';
 import { QueryConcertDto } from './dto/query-concert.dto';
 import { UpdateConcertDto } from './dto/update-concert.dto';
@@ -12,6 +12,8 @@ import { CONCERT_DELETED, type ConcertDeletedEvent } from './events/concert-dele
 
 @Injectable()
 export class ConcertsService {
+  private readonly logger = new Logger(ConcertsService.name);
+
   constructor(
     @InjectModel(Concert.name) private model: Model<ConcertDocument>,
     private events: EventEmitter2,
@@ -75,7 +77,7 @@ export class ConcertsService {
     const updated = await this.model.findOneAndUpdate(
       { _id: id, date: { $gt: new Date() }, availableSeats: { $gte: quantity } },
       { $inc: { availableSeats: -quantity } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (updated) return updated;
 
@@ -110,6 +112,8 @@ export class ConcertsService {
     if (!res) throw new NotFoundException('Concert introuvable');
 
     const payload: ConcertDeletedEvent = { id };
+    this.logger.log(`Concert ${id} supprimé, émission de ${CONCERT_DELETED}`);
     this.events.emit(CONCERT_DELETED, payload);
   }
+  
 }

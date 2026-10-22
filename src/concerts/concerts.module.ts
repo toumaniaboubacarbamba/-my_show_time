@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { Concert, ConcertSchema } from './concert.schemas';
+import { Concert, ConcertSchema } from './concert.schema';
 import { ConcertsController } from './concerts.controller';
 import { ConcertsService } from './concerts.service';
 

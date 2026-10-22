@@ -61,7 +61,7 @@ export class NotificationsService {
     const notification = await this.model.findOneAndUpdate(
       { _id: id, user: userId },
       { read: true },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!notification) throw new NotFoundException('Notification introuvable');
     return notification;
