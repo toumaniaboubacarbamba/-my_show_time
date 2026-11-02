@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -6,7 +5,10 @@ import { Role } from './common/enums/role.enum';
 import { ConcertsService } from './concerts/concerts.service';
 import { UsersService } from './users/users.service';
 
-const logger = new Logger('Seed');
+const logger = {
+  log: (msg: string) => console.log(`[seed] ${msg}`),
+  error: (msg: unknown) => console.error(`[seed] ${msg}`),
+};
 
 async function seedAdmin(config: ConfigService, users: UsersService) {
   const email = config.get<string>('ADMIN_EMAIL');
