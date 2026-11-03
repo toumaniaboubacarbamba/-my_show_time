@@ -28,8 +28,8 @@ export class BookingsService {
   ) {}
 
   private link(reference: string) {
-    const base = this.config.get<string>('PUBLIC_URL', 'http://localhost:3000');
-    return `${base}/bookings/verify/${reference}`;
+    const front = this.config.get<string>('FRONT_URL', 'http://localhost:3001');
+    return `${front}/billet/${reference}`;
   }
 
   // Forme renvoyée par les routes de vérification : infos minimales, aucune donnée personnelle
