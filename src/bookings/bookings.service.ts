@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
@@ -26,14 +32,26 @@ export class BookingsService {
     return `${base}/bookings/verify/${reference}`;
   }
 
+  // Forme renvoyée par les routes de vérification : infos minimales, aucune donnée personnelle
+  private toPublic(booking: BookingDocument) {
+    return {
+      reference: booking.reference,
+      status: booking.status,
+      quantity: booking.quantity,
+      totalPrice: booking.totalPrice,
+      checkedInAt: booking.checkedInAt ?? null,
+      concert: booking.concert,
+    };
+  }
+
   @OnEvent(CONCERT_DELETED)
-async onConcertDeleted(event: ConcertDeletedEvent) {
-  const res = await this.model.updateMany(
-    { concert: new Types.ObjectId(event.id), status: BookingStatus.Confirmed },
-    { status: BookingStatus.Cancelled },
-  );
-  this.logger.log(`Concert ${event.id} supprimé : ${res.modifiedCount} réservation(s) annulée(s)`);
-}
+  async onConcertDeleted(event: ConcertDeletedEvent) {
+    const res = await this.model.updateMany(
+      { concert: new Types.ObjectId(event.id), status: BookingStatus.Confirmed },
+      { status: BookingStatus.Cancelled },
+    );
+    this.logger.log(`Concert ${event.id} supprimé : ${res.modifiedCount} réservation(s) annulée(s)`);
+  }
 
   @OnEvent(USER_DELETED)
   async onUserDeleted(event: UserDeletedEvent) {
@@ -76,11 +94,11 @@ async onConcertDeleted(event: ConcertDeletedEvent) {
 
   async cancel(userId: string, id: string) {
     const booking = await this.model.findOneAndUpdate(
-      { _id: id, user: userId, status: BookingStatus.Confirmed },
+      { _id: id, user: userId, status: BookingStatus.Confirmed, checkedInAt: null },
       { status: BookingStatus.Cancelled },
       { returnDocument: 'after' },
     );
-    if (!booking) throw new NotFoundException('Réservation introuvable ou déjà annulée');
+    if (!booking) throw new NotFoundException('Réservation introuvable, déjà annulée ou déjà utilisée');
 
     await this.concerts.releaseSeats(booking.concert.toString(), booking.quantity);
     return booking;
@@ -105,14 +123,29 @@ async onConcertDeleted(event: ConcertDeletedEvent) {
       .findOne({ reference })
       .populate('concert', 'title band date venue');
     if (!booking) throw new NotFoundException('Réservation introuvable');
+    return this.toPublic(booking);
+  }
 
-    return {
-      reference: booking.reference,
-      status: booking.status,
-      quantity: booking.quantity,
-      totalPrice: booking.totalPrice,
-      concert: booking.concert,
-    };
+  // Validation à l'entrée : un billet ne peut servir qu'une seule fois.
+  // Le filtre { checkedInAt: null } rend l'opération atomique : si deux contrôleurs
+  // scannent en même temps, un seul passe.
+  async checkIn(reference: string) {
+    const booking = await this.model
+      .findOneAndUpdate(
+        { reference, status: BookingStatus.Confirmed, checkedInAt: null },
+        { checkedInAt: new Date() },
+        { returnDocument: 'after' },
+      )
+      .populate('concert', 'title band date venue');
+
+    if (booking) return this.toPublic(booking);
+
+    const existing = await this.model.findOne({ reference });
+    if (!existing) throw new NotFoundException('Réservation introuvable');
+    if (existing.status !== BookingStatus.Confirmed) {
+      throw new BadRequestException('Cette réservation est annulée');
+    }
+    throw new ConflictException('Billet déjà utilisé');
   }
 
   async stats(days = 30) {

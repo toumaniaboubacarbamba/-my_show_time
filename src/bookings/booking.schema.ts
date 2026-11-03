@@ -3,19 +3,17 @@ import { randomUUID } from 'crypto';
 import { Concert } from '../concerts/concert.schema';
 import { User } from '../users/user.schema';
 import { BookingStatus } from './booking-status.enum';
-  import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type BookingDocument = HydratedDocument<Booking>;
 
 @Schema({ timestamps: true })
 export class Booking {
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
+  user: Types.ObjectId;
 
-@Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
-user: Types.ObjectId;
-
-@Prop({ type: MongooseSchema.Types.ObjectId, ref: Concert.name, required: true, index: true })
-concert: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Concert.name, required: true, index: true })
+  concert: Types.ObjectId;
 
   @Prop({ required: true, min: 1 })
   quantity: number;
@@ -28,6 +26,10 @@ concert: Types.ObjectId;
 
   @Prop({ required: true, unique: true, default: () => randomUUID() })
   reference: string;
+
+  // Date d'entrée enregistrée au contrôle. null = billet pas encore utilisé.
+  @Prop({ type: Date, default: null })
+  checkedInAt: Date | null;
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);

@@ -10,8 +10,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiProduces, ApiTags } from '@nestjs/swagger';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe';
 import type { AuthUser } from '../common/types/auth-user.type';
 import { BookingsService } from './bookings.service';
@@ -22,10 +25,18 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 export class BookingsController {
   constructor(private bookings: BookingsService) {}
 
-  // Publique : c'est le lien encodé dans le QR code
   @Get('verify/:reference')
   verify(@Param('reference', ParseUUIDPipe) reference: string) {
     return this.bookings.verify(reference);
+  }
+
+  // Réservée au staff : enregistre l'entrée du billet
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.Admin)
+  @Patch('check-in/:reference')
+  checkIn(@Param('reference', ParseUUIDPipe) reference: string) {
+    return this.bookings.checkIn(reference);
   }
 
   @ApiBearerAuth()

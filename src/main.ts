@@ -14,8 +14,15 @@ async function bootstrap() {
     .build();
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));
 
-  app.enableCors({ origin: true });
+  const origins = (process.env.CORS_ORIGINS ?? '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
   
+  app.enableCors({
+  // en dev : toutes les origines ; en production : seulement la liste
+  origin: process.env.NODE_ENV === 'production' ? origins : true,
+});
   await app.listen(process.env.PORT ?? 3000, "0.0.0.0");
 }
 bootstrap();
