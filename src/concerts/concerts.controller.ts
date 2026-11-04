@@ -1,7 +1,21 @@
 import {
-  Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards,
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import * as uploadedImageFile from '../common/types/uploaded-image-file';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -33,6 +47,35 @@ export class ConcertsController {
   @Post()
   create(@Body() dto: CreateConcertDto) {
     return this.concerts.create(dto);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.Admin)
+  @Post(':id/poster')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (req, file, cb) => {
+        if (!/^image\/(jpeg|png|webp)$/.test(file.mimetype)) {
+          return cb(new BadRequestException('Formats acceptés : JPG, PNG, WebP'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadPoster(@Param('id', ParseObjectIdPipe) id: string, @UploadedFile() file: uploadedImageFile.UploadedImageFile) {
+    if (!file) throw new BadRequestException('Fichier manquant');
+    return this.concerts.setPoster(id, file);
   }
 
   @ApiBearerAuth()

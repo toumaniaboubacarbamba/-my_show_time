@@ -9,6 +9,8 @@ import { UpdateConcertDto } from './dto/update-concert.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CONCERT_CREATED, ConcertCreatedEvent } from './events/concert-created.event';
 import { CONCERT_DELETED, type ConcertDeletedEvent } from './events/concert-deleted.event';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { UploadedImageFile } from '../common/types/uploaded-image-file';
 
 @Injectable()
 export class ConcertsService {
@@ -17,6 +19,7 @@ export class ConcertsService {
   constructor(
     @InjectModel(Concert.name) private model: Model<ConcertDocument>,
     private events: EventEmitter2,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   async create(dto: CreateConcertDto) {
@@ -115,5 +118,14 @@ export class ConcertsService {
     this.logger.log(`Concert ${id} supprimé, émission de ${CONCERT_DELETED}`);
     this.events.emit(CONCERT_DELETED, payload);
   }
-  
+
+  async setPoster(id: string, file: UploadedImageFile) {
+    const concert = await this.model.findById(id);
+    if (!concert) throw new NotFoundException('Concert introuvable');
+
+    const result = await this.cloudinary.uploadImage(file);
+    concert.posterUrl = result.secure_url;
+    concert.posterPublicId = result.public_id;
+    return concert.save();
+  }
 }

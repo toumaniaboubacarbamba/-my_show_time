@@ -28,6 +28,9 @@ export class Concert {
 
   @Prop({ required: true, min: 0 })
   price: number;
+
+  @Prop() posterUrl?: string;
+@Prop() posterPublicId?: string;
 }
 
 export const ConcertSchema = SchemaFactory.createForClass(Concert);
