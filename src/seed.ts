@@ -10,6 +10,7 @@ const logger = {
   error: (msg: unknown) => console.error(`[seed] ${msg}`),
 };
 
+
 async function seedAdmin(config: ConfigService, users: UsersService) {
   const email = config.get<string>('ADMIN_EMAIL');
   const password = config.get<string>('ADMIN_PASSWORD');
@@ -56,7 +57,11 @@ async function seedDemoConcerts(concerts: ConcertsService) {
   ];
 
   for (const concert of demo) {
-    await concerts.create(concert);
+    const { totalSeats, price, ...rest } = concert;
+    await concerts.create({
+      ...rest,
+      tiers: [{ name: 'Standard', price, totalSeats }],
+    });
   }
   logger.log(`${demo.length} concerts de démo créés`);
 }
