@@ -9,13 +9,13 @@ import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import * as QRCode from 'qrcode';
+import { Model, Types } from 'mongoose';
 import { ConcertsService } from '../concerts/concerts.service';
 import { CONCERT_DELETED, type ConcertDeletedEvent } from '../concerts/events/concert-deleted.event';
 import { USER_DELETED, type UserDeletedEvent } from '../users/events/user-deleted.event';
 import { BookingStatus } from './booking-status.enum';
 import { Booking, BookingDocument } from './booking.schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
-import { Model, Types } from 'mongoose';
 
 @Injectable()
 export class BookingsService {
@@ -38,6 +38,8 @@ export class BookingsService {
       reference: booking.reference,
       status: booking.status,
       quantity: booking.quantity,
+      tierName: booking.tierName,
+      unitPrice: booking.unitPrice,
       totalPrice: booking.totalPrice,
       checkedInAt: booking.checkedInAt ?? null,
       concert: booking.concert,
@@ -63,24 +65,27 @@ export class BookingsService {
         { returnDocument: 'after' },
       );
       if (cancelled) {
-        await this.concerts.releaseSeats(booking.concert.toString(), booking.quantity);
+        await this.concerts.releaseSeats(booking.concert.toString(), booking.tierName, booking.quantity);
       }
     }
   }
 
   async create(userId: string, dto: CreateBookingDto) {
-    const concert = await this.concerts.reserveSeats(dto.concertId, dto.quantity);
+    const { concert, tier } = await this.concerts.reserveSeats(dto.concertId, dto.tier, dto.quantity);
+
     try {
       const booking = await this.model.create({
         user: userId,
         concert: concert._id,
         quantity: dto.quantity,
-        totalPrice: concert.price * dto.quantity,
+        tierName: tier.name,
+        unitPrice: tier.price,
+        totalPrice: tier.price * dto.quantity,
       });
       return { ...booking.toObject(), link: this.link(booking.reference) };
     } catch (err) {
       // La réservation n'a pas pu être enregistrée : on rend les places
-      await this.concerts.releaseSeats(dto.concertId, dto.quantity);
+      await this.concerts.releaseSeats(dto.concertId, tier.name, dto.quantity);
       throw err;
     }
   }
@@ -100,7 +105,7 @@ export class BookingsService {
     );
     if (!booking) throw new NotFoundException('Réservation introuvable, déjà annulée ou déjà utilisée');
 
-    await this.concerts.releaseSeats(booking.concert.toString(), booking.quantity);
+    await this.concerts.releaseSeats(booking.concert.toString(), booking.tierName, booking.quantity);
     return booking;
   }
 
@@ -119,9 +124,7 @@ export class BookingsService {
 
   // Route publique ouverte par le QR code : infos minimales, aucune donnée personnelle
   async verify(reference: string) {
-    const booking = await this.model
-      .findOne({ reference })
-      .populate('concert', 'title band date venue');
+    const booking = await this.model.findOne({ reference }).populate('concert', 'title band date venue');
     if (!booking) throw new NotFoundException('Réservation introuvable');
     return this.toPublic(booking);
   }

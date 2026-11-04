@@ -15,6 +15,12 @@ export class Booking {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Concert.name, required: true, index: true })
   concert: Types.ObjectId;
 
+  @Prop({ required: true, trim: true })
+  tierName: string;
+
+  @Prop({ required: true, min: 0 })
+  unitPrice: number;
+
   @Prop({ required: true, min: 1 })
   quantity: number;
 
